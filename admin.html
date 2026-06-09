@@ -2705,6 +2705,20 @@
       } catch (e) { showToast('Error: ' + e.message, 'error'); }
     };
 
+    // ── START DESIGN IN PHOTOPIA ──
+    window.startDesignInPhotopia = async function (id) {
+      if (!confirm('Mark design as started and open Photopia?')) return;
+      try {
+        const updates = { designingStartedAt: serverTimestamp() };
+        await updateDoc(doc(db, 'orders', id), updates);
+        _allOrders = _allOrders.map(o => o.id === id ? { ...o, ...updates } : o);
+        showToast('Design started! Timeline updated.', 'success');
+        // Open Photopia design tool
+        window.open('https://photopea.com', '_blank');
+        openOrderDetail(id);
+      } catch (e) { showToast('Error: ' + e.message, 'error'); }
+    };
+
     window.rejectPayment = async function (id) {
       if (!confirm('Reject this payment slip? The client will need to re-upload.')) return;
       try {
@@ -2938,7 +2952,7 @@
         if (progressBar) progressBar.style.width = '100%';
         if (progressLabel) progressLabel.textContent = 'Saving…';
 
-        await updateDoc(doc(db, 'orders', orderId), { deliveryFiles: uploadedFiles, deliveryLink: uploadedFiles[0]?.url || '' });
+        await updateDoc(doc(db, 'orders', orderId), { deliveryFiles: uploadedFiles, deliveryLink: uploadedFiles[0]?.url || '', deliveredAt: serverTimestamp() });
         _allOrders = _allOrders.map(o => o.id === orderId ? { ...o, deliveryFiles: uploadedFiles, deliveryLink: uploadedFiles[0]?.url || '' } : o);
         document.getElementById('delivery-modal-dynamic').classList.remove('show');
         showToast(`${window._deliveryFiles.length} file(s) delivered to client!`, 'success');
@@ -3027,6 +3041,13 @@
 
         const payPaid = o.paymentStatus === 'Paid';
         slipSection.style.display = 'block';
+
+        const designBtnHtml = payPaid
+          ? (!o.designingStartedAt
+              ? '<button onclick="startDesignInPhotopia(\'' + o.id + '\')" style="margin-top:0.65rem;display:inline-flex;align-items:center;gap:0.5rem;background:linear-gradient(135deg,rgba(168,85,247,0.15),rgba(99,102,241,0.15));border:1px solid rgba(168,85,247,0.4);color:#c084fc;border-radius:0.6rem;padding:0.55rem 1.1rem;font-size:0.8rem;font-weight:700;cursor:pointer;transition:all 0.2s;width:100%;justify-content:center;" onmouseover="this.style.background=\'linear-gradient(135deg,rgba(168,85,247,0.28),rgba(99,102,241,0.28))\'" onmouseout="this.style.background=\'linear-gradient(135deg,rgba(168,85,247,0.15),rgba(99,102,241,0.15))\'"><i class="fas fa-paint-brush"></i> Start Design in Photopea</button>'
+              : '<div style="margin-top:0.65rem;display:flex;align-items:center;gap:0.5rem;background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.2);border-radius:0.55rem;padding:0.45rem 0.85rem;"><i class="fas fa-paint-brush" style="color:#a855f7;"></i><span style="font-size:0.78rem;color:#a855f7;font-weight:600;">Design in Progress ✏️</span><button onclick="window.open(\'https://photopea.com\',\'_blank\')" style="margin-left:auto;background:rgba(168,85,247,0.12);border:1px solid rgba(168,85,247,0.25);color:#c084fc;border-radius:0.4rem;padding:0.25rem 0.65rem;font-size:0.72rem;font-weight:700;cursor:pointer;">Open Photopea</button></div>')
+          : '';
+
         slipSection.innerHTML = `
       <div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.14em;color:var(--muted);margin-bottom:0.6rem;">
         <i class="fas fa-receipt" style="margin-right:4px;color:var(--purple);"></i>Payment Slip
@@ -3059,7 +3080,9 @@
       </div>` : `
       <div class="success-banner" style="margin-top:0.75rem;padding:0.5rem 0.85rem;">
         <i class="fas fa-check-circle"></i><span style="font-size:0.78rem;">Payment confirmed — slip verified</span>
-      </div>`}`;
+      </div>
+      ${designBtnHtml}`}`;
+
       } else {
         slipSection.style.display = 'block';
         slipSection.innerHTML = `
