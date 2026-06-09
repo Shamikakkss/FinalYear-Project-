@@ -1936,8 +1936,10 @@
                     countdownWrap.style.display = 'none';
                 }
 
-                document.getElementById('chat-service-title').textContent = `${order.brand || 'Order'} — ${order.service || 'Service'}`;
-                document.getElementById('chat-service-meta').textContent = `Budget: ${order.budget || '—'} · Delivery: ${deadlineVal ? new Date(deadlineVal + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}`;
+                const _titleEl = document.getElementById('chat-service-title');
+                const _metaEl  = document.getElementById('chat-service-meta');
+                if (_titleEl) _titleEl.textContent = `${order.brand || 'Order'} — ${order.service || 'Service'}`;
+                if (_metaEl)  _metaEl.textContent  = `Budget: ${order.budget || '—'} · Delivery: ${deadlineVal ? new Date(deadlineVal + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}`;
 
                 // Payment status display
                 const payStatus = order.paymentStatus || 'Unpaid';
@@ -1991,10 +1993,10 @@
                         <div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.6rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:0.5rem;">
                             <i class="fas fa-file-alt" style="color:#64748b;font-size:0.8rem;flex-shrink:0;"></i>
                             <span style="flex:1;font-size:0.75rem;color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${(f.name||'').replace(/</g,'&lt;')}</span>
-                            <a href="${f.url}" download="${(f.name||'file').replace(/"/g,'')}" target="_blank"
-                               style="flex-shrink:0;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.25);color:#22c55e;border-radius:0.4rem;padding:0.25rem 0.55rem;font-size:0.68rem;font-weight:700;text-decoration:none;display:flex;align-items:center;gap:0.3rem;">
+                            <button onclick="downloadSingleDeliveryFile('${(f.url||'').replace(/'/g,"\\'")}','${(f.name||'file').replace(/'/g,"\\'")}');"
+                               style="flex-shrink:0;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.25);color:#22c55e;border-radius:0.4rem;padding:0.25rem 0.55rem;font-size:0.68rem;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:0.3rem;font-family:inherit;">
                                 <i class="fas fa-download"></i>
-                            </a>
+                            </button>
                         </div>`).join('');
                 } else if (delivSection) {
                     delivSection.style.display = 'none';
@@ -2125,27 +2127,20 @@
                 messagesEl.innerHTML = '<div class="sys-msg">Support Chat · ' + new Date().toLocaleDateString() + '</div>';
                 snap.forEach(d => {
                     const msg = d.data();
-                    // mine = sent by this user; theirs = sent by admin (sender flag OR no uid match)
-                    const isAdmin = msg.sender === 'admin';
-                    const mine = !isAdmin && msg.uid === window._currentUser?.uid;
+                    const mine = msg.uid === window._currentUser?.uid;
                     const time = msg.createdAt && typeof msg.createdAt.seconds === 'number' ? new Date(msg.createdAt.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-                    let avaHtml;
+                    const init = (msg.senderName || '?')[0].toUpperCase();
+                    let avaHtml = `<div class="msg-avatar ${mine ? 'user' : ''}">${init}</div>`;
                     if (mine && window._currentUser?.profilePhotoData) {
                         avaHtml = `<div class="msg-avatar user" style="overflow:hidden;background:transparent;"><img src="${window._currentUser.profilePhotoData}" style="width:100%;height:100%;object-fit:cover;"></div>`;
-                    } else if (mine) {
-                        avaHtml = `<div class="msg-avatar user">${(window._currentUser?.fname || '?')[0].toUpperCase()}</div>`;
-                    } else {
-                        // Admin avatar — show "R" for Ruu Graphics
-                        avaHtml = `<div class="msg-avatar" style="background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;font-size:0.65rem;font-weight:800;">R</div>`;
                     }
-                    const imgSrc = msg.imageUrl || msg.imageData || '';
                     messagesEl.innerHTML += `
                         <div class="msg ${mine ? 'mine' : 'theirs'}">
                             ${avaHtml}
                             <div class="msg-inner">
                                 <div class="msg-bubble">
-                                    ${imgSrc ? `<img src="${imgSrc}" style="max-width:200px; border-radius:0.5rem; display:block; margin-bottom:0.4rem; cursor:pointer;" onclick="window.open(this.src)">` : ''}
-                                    ${msg.text !== 'Sent an image' ? _escHtml(msg.text || '') : ''}
+                                    ${msg.imageData ? `<img src="${msg.imageData}" style="max-width:200px; border-radius:0.5rem; display:block; margin-bottom:0.4rem; cursor:pointer;" onclick="window.open(this.src)">` : ''}
+                                    ${msg.text !== 'Sent an image' ? _escHtml(msg.text) : ''}
                                 </div>
                                 <div class="msg-time">${time}</div>
                             </div>
@@ -2204,7 +2199,7 @@
                             ${avaHtml}
                             <div class="msg-inner">
                                 <div class="msg-bubble">
-                                    ${(msg.imageUrl||msg.imageData) ? `<img src="${msg.imageUrl||msg.imageData}" style="max-width:200px; border-radius:0.5rem; display:block; margin-bottom:0.4rem; cursor:pointer;" onclick="window.open(this.src)">` : ''}
+                                    ${msg.imageData ? `<img src="${msg.imageData}" style="max-width:200px; border-radius:0.5rem; display:block; margin-bottom:0.4rem; cursor:pointer;" onclick="window.open(this.src)">` : ''}
                                     ${msg.text !== 'Sent an image' ? _escHtml(msg.text) : ''}
                                 </div>
                                 <div class="msg-time">${time}</div>
@@ -2240,28 +2235,20 @@
             const file = e.target.files[0];
             if (!file || !window._currentUser) return;
             try {
-                showToast('Uploading image…', 'info');
-                const ts = Date.now();
-                const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-                const uid = window._currentUser.uid;
-                const chatId = type === 'order' ? window._activeChatOrderKey : uid;
-                const path = `chat/${type}/${chatId}/${ts}_${safeName}`;
-                const { error: upErr } = await supabase.storage
-                    .from('portfolio')
-                    .upload(path, file, { upsert: true, contentType: file.type });
-                if (upErr) throw new Error(upErr.message);
-                const { data: urlData } = supabase.storage.from('portfolio').getPublicUrl(path);
+                const dataUrl = await resizeAndConvertToBase64(file, 5); // 5MB max
+
                 const payload = {
-                    uid,
+                    uid: window._currentUser.uid,
                     senderName: (window._currentUser.fname || '') + ' ' + (window._currentUser.lname || ''),
                     text: 'Sent an image',
-                    imageUrl: urlData.publicUrl,
+                    imageData: dataUrl,
                     createdAt: serverTimestamp()
                 };
+
                 if (type === 'order' && window._activeChatOrderKey) {
                     await addDoc(collection(db, 'orders', window._activeChatOrderKey, 'messages'), payload);
                 } else if (type === 'support') {
-                    await addDoc(collection(db, 'supportChats', uid, 'messages'), payload);
+                    await addDoc(collection(db, 'supportChats', window._currentUser.uid, 'messages'), payload);
                 }
             } catch (err) {
                 console.error('Image send failed:', err);
@@ -2274,20 +2261,36 @@
         // ════════════════════════════════════════
         // HELPERS
         // ════════════════════════════════════════
+        // Download a single file via fetch→blob so cross-origin Supabase URLs work
+        async function _downloadFileBlob(url, name) {
+            try {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error('Network error');
+                const blob = await res.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = name || 'delivery-file';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+            } catch (e) {
+                // Fallback: open in new tab if fetch fails
+                window.open(url, '_blank');
+            }
+        }
+
         window.downloadAllDeliveryFiles = function () {
             const files = window._currentDeliveryFiles || [];
             if (!files.length) return;
             files.forEach((f, i) => {
-                setTimeout(() => {
-                    const a = document.createElement('a');
-                    a.href = f.url;
-                    a.download = f.name || 'delivery-file';
-                    a.target = '_blank';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                }, i * 400);
+                setTimeout(() => _downloadFileBlob(f.url, f.name), i * 600);
             });
+        };
+
+        window.downloadSingleDeliveryFile = function (url, name) {
+            _downloadFileBlob(url, name);
         };
 
         function _esc(s) { return (s || '').replace(/'/g, "\\'"); }
